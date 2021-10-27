@@ -28,13 +28,22 @@ fn tokenizes_empty_file() {
 fn tokenizes_space() {
   run(
     "\r\n \u{12}\t",
-    vec![Token::new("space", "\r\n \u{12}\t", None, None)],
+    vec![Token::Space {
+      content: "\r\n \u{12}\t".into(),
+    }],
   );
 }
 
 #[test]
 fn tokenizes_word() {
-  run("ab", vec![Token::new("word", "ab", Some(0), Some(1))]);
+  run(
+    "ab",
+    vec![Token::Word {
+      content: "ab".into(),
+      pos: 0,
+      next: 1,
+    }],
+  );
 }
 
 #[test]
@@ -42,8 +51,16 @@ fn splits_word_by_exclamation_mark() {
   run(
     "aa!bb",
     vec![
-      Token::new("word", "aa", Some(0), Some(1)),
-      Token::new("word", "!bb", Some(2), Some(4)),
+      Token::Word {
+        content: "aa".into(),
+        pos: 0,
+        next: 1,
+      },
+      Token::Word {
+        content: "!bb".into(),
+        pos: 2,
+        next: 4,
+      },
     ],
   );
 }
@@ -53,9 +70,19 @@ fn changes_lines_in_spaces() {
   run(
     "a \n b",
     vec![
-      Token::new("word", "a", Some(0), Some(0)),
-      Token::new("space", " \n ", None, None),
-      Token::new("word", "b", Some(4), Some(4)),
+      Token::Word {
+        content: "a".into(),
+        pos: 0,
+        next: 0,
+      },
+      Token::Space {
+        content: " \n ".into(),
+      },
+      Token::Word {
+        content: "b".into(),
+        pos: 4,
+        next: 4,
+      },
     ],
   );
 }
@@ -65,10 +92,26 @@ fn tokenizes_control_chars() {
   run(
     "{:;}",
     vec![
-      Token::new("{", "{", Some(0), None),
-      Token::new(":", ":", Some(1), None),
-      Token::new(";", ";", Some(2), None),
-      Token::new("}", "}", Some(3), None),
+      Token::Control {
+        kind: TokenControlKind::OpenCurly,
+        content: TokenControlKind::OpenCurly.into(),
+        pos: 0,
+      },
+      Token::Control {
+        kind: TokenControlKind::Colon,
+        content: TokenControlKind::Colon.into(),
+        pos: 1,
+      },
+      Token::Control {
+        kind: TokenControlKind::Semicolon,
+        content: TokenControlKind::Semicolon.into(),
+        pos: 2,
+      },
+      Token::Control {
+        kind: TokenControlKind::CloseCurly,
+        content: TokenControlKind::CloseCurly.into(),
+        pos: 3,
+      },
     ],
   );
 }
@@ -78,12 +121,36 @@ fn escapes_control_symbols() {
   run(
     "\\(\\{\\\"\\@\\\\\"\"",
     vec![
-      Token::new("word", "\\(", Some(0), Some(1)),
-      Token::new("word", "\\{", Some(2), Some(3)),
-      Token::new("word", "\\\"", Some(4), Some(5)),
-      Token::new("word", "\\@", Some(6), Some(7)),
-      Token::new("word", "\\\\", Some(8), Some(9)),
-      Token::new("string", "\"\"", Some(10), Some(11)),
+      Token::Word {
+        content: "\\(".into(),
+        pos: 0,
+        next: 1,
+      },
+      Token::Word {
+        content: "\\{".into(),
+        pos: 2,
+        next: 3,
+      },
+      Token::Word {
+        content: "\\\"".into(),
+        pos: 4,
+        next: 5,
+      },
+      Token::Word {
+        content: "\\@".into(),
+        pos: 6,
+        next: 7,
+      },
+      Token::Word {
+        content: "\\\\".into(),
+        pos: 8,
+        next: 9,
+      },
+      Token::String {
+        content: "\"\"".into(),
+        pos: 10,
+        next: 11,
+      },
     ],
   );
 }
@@ -93,8 +160,16 @@ fn escapes_backslash() {
   run(
     "\\\\\\\\{",
     vec![
-      Token::new("word", "\\\\\\\\", Some(0), Some(3)),
-      Token::new("{", "{", Some(4), None),
+      Token::Word {
+        content: "\\\\\\\\".into(),
+        pos: 0,
+        next: 3,
+      },
+      Token::Control {
+        kind: TokenControlKind::OpenCurly,
+        content: TokenControlKind::OpenCurly.into(),
+        pos: 4,
+      },
     ],
   );
 }
@@ -103,7 +178,11 @@ fn escapes_backslash() {
 fn tokenizes_simple_brackets() {
   run(
     "(ab)",
-    vec![Token::new("brackets", "(ab)", Some(0), Some(3))],
+    vec![Token::Brackets {
+      content: "(ab)".into(),
+      pos: 0,
+      next: 3,
+    }],
   );
 }
 
@@ -112,10 +191,26 @@ fn tokenizes_square_brackets() {
   run(
     "a[bc]",
     vec![
-      Token::new("word", "a", Some(0), Some(0)),
-      Token::new("[", "[", Some(1), None),
-      Token::new("word", "bc", Some(2), Some(3)),
-      Token::new("]", "]", Some(4), None),
+      Token::Word {
+        content: "a".into(),
+        pos: 0,
+        next: 0,
+      },
+      Token::Control {
+        kind: TokenControlKind::OpenSquare,
+        content: TokenControlKind::OpenSquare.into(),
+        pos: 1,
+      },
+      Token::Word {
+        content: "bc".into(),
+        pos: 2,
+        next: 3,
+      },
+      Token::Control {
+        kind: TokenControlKind::OpenSquare,
+        content: TokenControlKind::OpenSquare.into(),
+        pos: 4,
+      },
     ],
   );
 }
@@ -125,22 +220,60 @@ fn tokenizes_complicated_brackets() {
   run(
     "(())(\"\")(/**/)(\\\\)(\n)(",
     vec![
-      Token::new("(", "(", Some(0), None),
-      Token::new("brackets", "()", Some(1), Some(2)),
-      Token::new(")", ")", Some(3), None),
-      Token::new("(", "(", Some(4), None),
-      Token::new("string", "\"\"", Some(5), Some(6)),
-      Token::new(")", ")", Some(7), None),
-      Token::new("(", "(", Some(8), None),
-      Token::new("comment", "/**/", Some(9), Some(12)),
-      Token::new(")", ")", Some(13), None),
-      Token::new("(", "(", Some(14), None),
-      Token::new("word", "\\\\", Some(15), Some(16)),
-      Token::new(")", ")", Some(17), None),
-      Token::new("(", "(", Some(18), None),
-      Token::new("space", "\n", None, None),
-      Token::new(")", ")", Some(20), None),
-      Token::new("(", "(", Some(21), None),
+      Token::BadBracket { pos: 0 },
+      Token::Brackets {
+        content: "()".into(),
+        pos: 1,
+        next: 2,
+      },
+      Token::Control {
+        kind: TokenControlKind::CloseParentheses,
+        content: TokenControlKind::CloseParentheses.into(),
+        pos: 3,
+      },
+      Token::BadBracket { pos: 4 },
+      Token::String {
+        content: "\"\"".into(),
+        pos: 5,
+        next: 6,
+      },
+      Token::Control {
+        kind: TokenControlKind::CloseParentheses,
+        content: TokenControlKind::CloseParentheses.into(),
+        pos: 7,
+      },
+      Token::BadBracket { pos: 8 },
+      Token::Comment {
+        content: "/**/".into(),
+        pos: 9,
+        next: 12,
+      },
+      Token::Control {
+        kind: TokenControlKind::CloseParentheses,
+        content: TokenControlKind::CloseParentheses.into(),
+        pos: 13,
+      },
+      Token::BadBracket { pos: 14 },
+      Token::Word {
+        content: "\\\\".into(),
+        pos: 15,
+        next: 16,
+      },
+      Token::Control {
+        kind: TokenControlKind::CloseParentheses,
+        content: TokenControlKind::CloseParentheses.into(),
+        pos: 17,
+      },
+      Token::BadBracket { pos: 18 },
+      Token::Space {
+        content: "\n".into(),
+      },
+      Token::Control {
+        kind: TokenControlKind::CloseParentheses,
+        content: TokenControlKind::CloseParentheses.into(),
+        pos: 20,
+      },
+      Token::BadBracket { pos: 21 },
     ],
   );
 }
@@ -150,8 +283,16 @@ fn tokenizes_string() {
   run(
     "'\"'\"\\\"\"",
     vec![
-      Token::new("string", "'\"'", Some(0), Some(2)),
-      Token::new("string", "\"\\\"\"", Some(3), Some(6)),
+      Token::String {
+        content: "'\"'".into(),
+        pos: 0,
+        next: 2,
+      },
+      Token::String {
+        content: "\"\\\"\"".into(),
+        pos: 3,
+        next: 6,
+      },
     ],
   );
 }
@@ -160,7 +301,11 @@ fn tokenizes_string() {
 fn tokenizes_escaped_string() {
   run(
     "\"\\\\\"",
-    vec![Token::new("string", "\"\\\\\"", Some(0), Some(3))],
+    vec![Token::String {
+      content: "\"\\\\\"".into(),
+      pos: 0,
+      next: 3,
+    }],
   );
 }
 
@@ -169,8 +314,16 @@ fn changes_lines_in_strings() {
   run(
     "\"\n\n\"\"\n\n\"",
     vec![
-      Token::new("string", "\"\n\n\"", Some(0), Some(3)),
-      Token::new("string", "\"\n\n\"", Some(4), Some(7)),
+      Token::String {
+        content: "\"\n\n\"".into(),
+        pos: 0,
+        next: 3,
+      },
+      Token::String {
+        content: "\"\n\n\"".into(),
+        pos: 4,
+        next: 7,
+      },
     ],
   );
 }
@@ -180,8 +333,14 @@ fn tokenizes_at_word() {
   run(
     "@word ",
     vec![
-      Token::new("at-word", "@word", Some(0), Some(4)),
-      Token::new("space", " ", None, None),
+      Token::AtWord {
+        content: "@word".into(),
+        pos: 0,
+        next: 4,
+      },
+      Token::Space {
+        content: " ".into(),
+      },
     ],
   );
 }
@@ -191,14 +350,46 @@ fn tokenizes_at_word_end() {
   run(
     "@one{@two()@three\"\"@four;",
     vec![
-      Token::new("at-word", "@one", Some(0), Some(3)),
-      Token::new("{", "{", Some(4), None),
-      Token::new("at-word", "@two", Some(5), Some(8)),
-      Token::new("brackets", "()", Some(9), Some(10)),
-      Token::new("at-word", "@three", Some(11), Some(16)),
-      Token::new("string", "\"\"", Some(17), Some(18)),
-      Token::new("at-word", "@four", Some(19), Some(23)),
-      Token::new(";", ";", Some(24), None),
+      Token::AtWord {
+        content: "@one".into(),
+        pos: 0,
+        next: 3,
+      },
+      Token::Control {
+        kind: TokenControlKind::OpenCurly,
+        content: TokenControlKind::OpenCurly.into(),
+        pos: 4,
+      },
+      Token::AtWord {
+        content: "@two".into(),
+        pos: 5,
+        next: 8,
+      },
+      Token::Brackets {
+        content: "()".into(),
+        pos: 9,
+        next: 10,
+      },
+      Token::AtWord {
+        content: "@three".into(),
+        pos: 11,
+        next: 16,
+      },
+      Token::String {
+        content: "\"\"".into(),
+        pos: 17,
+        next: 18,
+      },
+      Token::AtWord {
+        content: "@four".into(),
+        pos: 19,
+        next: 23,
+      },
+      Token::Control {
+        kind: TokenControlKind::Semicolon,
+        content: TokenControlKind::Semicolon.into(),
+        pos: 24,
+      },
     ],
   );
 }
@@ -208,8 +399,16 @@ fn tokenizes_urls() {
   run(
     "url(/*\\))",
     vec![
-      Token::new("word", "url", Some(0), Some(2)),
-      Token::new("brackets", "(/*\\))", Some(3), Some(8)),
+      Token::Word {
+        content: "url".into(),
+        pos: 0,
+        next: 2,
+      },
+      Token::Brackets {
+        content: "(/*\\))".into(),
+        pos: 3,
+        next: 8,
+      },
     ],
   );
 }
@@ -219,24 +418,47 @@ fn tokenizes_quoted_urls() {
   run(
     "url(\")\")",
     vec![
-      Token::new("word", "url", Some(0), Some(2)),
-      Token::new("(", "(", Some(3), None),
-      Token::new("string", "\")\"", Some(4), Some(6)),
-      Token::new(")", ")", Some(7), None),
+      Token::Word {
+        content: "url".into(),
+        pos: 0,
+        next: 2,
+      },
+      Token::BadBracket { pos: 3 },
+      Token::String {
+        content: "\")\"".into(),
+        pos: 4,
+        next: 6,
+      },
+      Token::Control {
+        kind: TokenControlKind::CloseParentheses,
+        content: TokenControlKind::CloseParentheses.into(),
+        pos: 7,
+      },
     ],
   );
 }
 
 #[test]
 fn tokenizes_at_symbol() {
-  run("@", vec![Token::new("at-word", "@", Some(0), Some(0))]);
+  run(
+    "@",
+    vec![Token::AtWord {
+      content: "@".into(),
+      pos: 0,
+      next: 0,
+    }],
+  );
 }
 
 #[test]
 fn tokenizes_comment() {
   run(
     "/* a\nb */",
-    vec![Token::new("comment", "/* a\nb */", Some(0), Some(8))],
+    vec![Token::Comment {
+      content: "/* a\nb */".into(),
+      pos: 0,
+      next: 8,
+    }],
   );
 }
 
@@ -245,9 +467,21 @@ fn changes_lines_in_comments() {
   run(
     "a/* \n */b",
     vec![
-      Token::new("word", "a", Some(0), Some(0)),
-      Token::new("comment", "/* \n */", Some(1), Some(7)),
-      Token::new("word", "b", Some(8), Some(8)),
+      Token::Word {
+        content: "a".into(),
+        pos: 0,
+        next: 0,
+      },
+      Token::Comment {
+        content: "/* \n */".into(),
+        pos: 1,
+        next: 7,
+      },
+      Token::Word {
+        content: "b".into(),
+        pos: 8,
+        next: 8,
+      },
     ],
   );
 }
@@ -257,9 +491,19 @@ fn supports_line_feed() {
   run(
     "a\u{12}b",
     vec![
-      Token::new("word", "a", Some(0), Some(0)),
-      Token::new("space", "\u{12}", None, None),
-      Token::new("word", "b", Some(2), Some(2)),
+      Token::Word {
+        content: "a".into(),
+        pos: 0,
+        next: 0,
+      },
+      Token::Space {
+        content: "\u{12}".into(),
+      },
+      Token::Word {
+        content: "b".into(),
+        pos: 2,
+        next: 2,
+      },
     ],
   );
 }
@@ -269,11 +513,27 @@ fn supports_carriage_return() {
   run(
     "a\rb\r\nc",
     vec![
-      Token::new("word", "a", Some(0), Some(0)),
-      Token::new("space", "\r", None, None),
-      Token::new("word", "b", Some(2), Some(2)),
-      Token::new("space", "\r\n", None, None),
-      Token::new("word", "c", Some(5), Some(5)),
+      Token::Word {
+        content: "a".into(),
+        pos: 0,
+        next: 0,
+      },
+      Token::Space {
+        content: "\r".into(),
+      },
+      Token::Word {
+        content: "b".into(),
+        pos: 2,
+        next: 2,
+      },
+      Token::Space {
+        content: "\r\n".into(),
+      },
+      Token::Word {
+        content: "c".into(),
+        pos: 5,
+        next: 5,
+      },
     ],
   );
 }
@@ -283,32 +543,116 @@ fn tokenizes_css() {
   run(
     "a {\n  content: \"a\";\n  width: calc(1px;)\n  }\n/* small screen */\n@media screen {}",
     vec![
-      Token::new("word", "a", Some(0), Some(0)),
-      Token::new("space", " ", None, None),
-      Token::new("{", "{", Some(2), None),
-      Token::new("space", "\n  ", None, None),
-      Token::new("word", "content", Some(6), Some(12)),
-      Token::new(":", ":", Some(13), None),
-      Token::new("space", " ", None, None),
-      Token::new("string", "\"a\"", Some(15), Some(17)),
-      Token::new(";", ";", Some(18), None),
-      Token::new("space", "\n  ", None, None),
-      Token::new("word", "width", Some(22), Some(26)),
-      Token::new(":", ":", Some(27), None),
-      Token::new("space", " ", None, None),
-      Token::new("word", "calc", Some(29), Some(32)),
-      Token::new("brackets", "(1px;)", Some(33), Some(38)),
-      Token::new("space", "\n  ", None, None),
-      Token::new("}", "}", Some(42), None),
-      Token::new("space", "\n", None, None),
-      Token::new("comment", "/* small screen */", Some(44), Some(61)),
-      Token::new("space", "\n", None, None),
-      Token::new("at-word", "@media", Some(63), Some(68)),
-      Token::new("space", " ", None, None),
-      Token::new("word", "screen", Some(70), Some(75)),
-      Token::new("space", " ", None, None),
-      Token::new("{", "{", Some(77), None),
-      Token::new("}", "}", Some(78), None),
+      Token::Word {
+        content: "a".into(),
+        pos: 0,
+        next: 0,
+      },
+      Token::Space {
+        content: " ".into(),
+      },
+      Token::Control {
+        kind: TokenControlKind::OpenCurly,
+        content: TokenControlKind::OpenCurly.into(),
+        pos: 2,
+      },
+      Token::Space {
+        content: "\n  ".into(),
+      },
+      Token::Word {
+        content: "content".into(),
+        pos: 6,
+        next: 12,
+      },
+      Token::Control {
+        kind: TokenControlKind::Colon,
+        content: TokenControlKind::Colon.into(),
+        pos: 13,
+      },
+      Token::Space {
+        content: " ".into(),
+      },
+      Token::String {
+        content: "\"a\"".into(),
+        pos: 15,
+        next: 17,
+      },
+      Token::Control {
+        kind: TokenControlKind::Semicolon,
+        content: TokenControlKind::Semicolon.into(),
+        pos: 18,
+      },
+      Token::Space {
+        content: "\n  ".into(),
+      },
+      Token::Word {
+        content: "width".into(),
+        pos: 22,
+        next: 26,
+      },
+      Token::Control {
+        kind: TokenControlKind::Colon,
+        content: TokenControlKind::Colon.into(),
+        pos: 27,
+      },
+      Token::Space {
+        content: " ".into(),
+      },
+      Token::Word {
+        content: "calc".into(),
+        pos: 29,
+        next: 32,
+      },
+      Token::Brackets {
+        content: "(1px;)".into(),
+        pos: 33,
+        next: 38,
+      },
+      Token::Space {
+        content: "\n  ".into(),
+      },
+      Token::Control {
+        kind: TokenControlKind::CloseCurly,
+        content: TokenControlKind::CloseCurly.into(),
+        pos: 42,
+      },
+      Token::Space {
+        content: "\n".into(),
+      },
+      Token::Comment {
+        content: "/* small screen */".into(),
+        pos: 44,
+        next: 61,
+      },
+      Token::Space {
+        content: "\n".into(),
+      },
+      Token::AtWord {
+        content: "@media".into(),
+        pos: 63,
+        next: 68,
+      },
+      Token::Space {
+        content: " ".into(),
+      },
+      Token::Word {
+        content: "screen".into(),
+        pos: 70,
+        next: 75,
+      },
+      Token::Space {
+        content: " ".into(),
+      },
+      Token::Control {
+        kind: TokenControlKind::OpenCurly,
+        content: TokenControlKind::OpenCurly.into(),
+        pos: 77,
+      },
+      Token::Control {
+        kind: TokenControlKind::CloseCurly,
+        content: TokenControlKind::CloseCurly.into(),
+        pos: 78,
+      },
     ],
   );
 }
@@ -336,8 +680,14 @@ fn ignores_unclosing_string_on_request() {
   run_ignore_errors(
     " \"",
     vec![
-      Token::new("space", " ", None, None),
-      Token::new("string", "\"", Some(1), Some(2)),
+      Token::Space {
+        content: " ".into(),
+      },
+      Token::String {
+        content: "\"".into(),
+        pos: 1,
+        next: 2,
+      },
     ],
   );
 }
@@ -347,8 +697,14 @@ fn ignores_unclosing_comment_on_request() {
   run_ignore_errors(
     " /*",
     vec![
-      Token::new("space", " ", None, None),
-      Token::new("comment", "/*", Some(1), Some(3)),
+      Token::Space {
+        content: " ".into(),
+      },
+      Token::Comment {
+        content: "/*".into(),
+        pos: 1,
+        next: 3,
+      },
     ],
   );
 }
@@ -358,8 +714,16 @@ fn ignores_unclosing_function_on_request() {
   run_ignore_errors(
     "url(",
     vec![
-      Token::new("word", "url", Some(0), Some(2)),
-      Token::new("brackets", "(", Some(3), Some(3)),
+      Token::Word {
+        content: "url".into(),
+        pos: 0,
+        next: 2,
+      },
+      Token::Brackets {
+        content: "(".into(),
+        pos: 3,
+        next: 3,
+      },
     ],
   );
 }
@@ -369,10 +733,24 @@ fn tokenizes_hexadecimal_escape() {
   run(
     "\\0a \\09 \\z ",
     vec![
-      Token::new("word", "\\0a ", Some(0), Some(3)),
-      Token::new("word", "\\09 ", Some(4), Some(7)),
-      Token::new("word", "\\z", Some(8), Some(9)),
-      Token::new("space", " ", None, None),
+      Token::Word {
+        content: "\\0a".into(),
+        pos: 0,
+        next: 3,
+      },
+      Token::Word {
+        content: "\\09".into(),
+        pos: 4,
+        next: 7,
+      },
+      Token::Word {
+        content: "\\z".into(),
+        pos: 8,
+        next: 9,
+      },
+      Token::Space {
+        content: " ".into(),
+      },
     ],
   );
 }
@@ -391,14 +769,36 @@ fn ignore_unclosed_per_token_request() {
 
   let tokens = tokn("How's it going (");
   let expected = vec![
-    Token::new("word", "How", Some(0), Some(2)),
-    Token::new("string", "'s", Some(3), Some(4)),
-    Token::new("space", " ", None, None),
-    Token::new("word", "it", Some(6), Some(7)),
-    Token::new("space", " ", None, None),
-    Token::new("word", "going", Some(9), Some(13)),
-    Token::new("space", " ", None, None),
-    Token::new("(", "(", Some(15), None),
+    Token::Word {
+      content: "How".into(),
+      pos: 0,
+      next: 2,
+    },
+    Token::String {
+      content: "'s".into(),
+      pos: 3,
+      next: 4,
+    },
+    Token::Space {
+      content: " ".into(),
+    },
+    Token::Word {
+      content: "it".into(),
+      pos: 6,
+      next: 7,
+    },
+    Token::Space {
+      content: " ".into(),
+    },
+    Token::Word {
+      content: "going".into(),
+      pos: 9,
+      next: 13,
+    },
+    Token::Space {
+      content: " ".into(),
+    },
+    Token::BadBracket { pos: 15 },
   ];
   assert_eq!(tokens, expected);
 }
