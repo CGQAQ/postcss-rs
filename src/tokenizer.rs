@@ -385,12 +385,11 @@ impl<'a> Tokenizer<'a> {
           }
         }
 
-        self.current_token
-          == Token::Word {
-            content: sub_string(self.css, self.pos, next + 1).into(),
-            pos: self.pos,
-            next,
-          };
+        self.current_token = Token::Word {
+          content: sub_string(self.css, self.pos, next + 1).into(),
+          pos: self.pos,
+          next,
+        };
         self.pos = next;
       }
       _ => {
